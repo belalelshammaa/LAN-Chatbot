@@ -1,5 +1,6 @@
 #include "protocol.h"
 #include <stdio.h>
+#include <sys/socket.h>
 #include <unistd.h>
 // #include <psdk_inc/_socket_types.h>
 //  #include <stdio.h>
@@ -43,7 +44,17 @@ int start_host(void) {
     printf("could not listen : %d\n", listen_result);
     return -1;
   };
-  return sock;
+
+  struct sockaddr_storage client_addr;
+  socklen_t addr_size = sizeof client_addr;
+
+  int actual_sock = accept(sock, (struct sockaddr *)&client_addr, &addr_size);
+  if (actual_sock == -1) {
+    printf("could not accept connection");
+    return -1;
+  }
+
+  return actual_sock;
 }
 
 int start_guest(char *server_address) {
@@ -77,7 +88,7 @@ int start_guest(char *server_address) {
     break;
   }
   freeaddrinfo(result);
-  printf("connection established\n");
+  printf("connection established. sd number: %d\n", sock);
   return sock;
 }
 // sockaddr is general so stuff like bind() don't have to worry about family
