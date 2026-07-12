@@ -24,11 +24,11 @@ int start_host(void) {
     printf("error in getaddrinfo: %d\n", addr_result);
     return -1;
   }
-  int sock = -1;
 
   printf("socktype: %d,family: %d, protocol: %d\n", result->ai_socktype,
          result->ai_family, result->ai_protocol);
-  sock = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+  int sock =
+      socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 
   // bind associates socket with specific port number
   // only done on server/host as for the client they will attempt to connect to
@@ -45,16 +45,17 @@ int start_host(void) {
     return -1;
   };
 
-  struct sockaddr_storage client_addr;
-  socklen_t addr_size = sizeof client_addr;
+  // storing their client
+  // struct sockaddr_storage client_addr;
+  // socklen_t addr_size = sizeof client_addr;
 
-  int actual_sock = accept(sock, (struct sockaddr *)&client_addr, &addr_size);
-  if (actual_sock == -1) {
+  int client_sock = accept(sock, NULL, NULL);
+  if (client_sock == -1) {
     printf("could not accept connection");
     return -1;
   }
 
-  return actual_sock;
+  return client_sock;
 }
 
 int start_guest(char *server_address) {
