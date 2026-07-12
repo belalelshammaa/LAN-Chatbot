@@ -18,7 +18,8 @@
 #pragma comment(lib, "ws2_32.lib")
 
 #define PAYLOAD_SIZE 1024
-#define DEFAULT_PORT 8888
+// functions like getaddrinfo require this to be a string and not an int
+#define DEFAULT_PORT "8888"
 
 enum PacketType {
   PacketChat = 1,

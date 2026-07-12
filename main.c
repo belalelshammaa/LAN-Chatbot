@@ -1,5 +1,6 @@
+#include "network.h"
 #include "protocol.h"
-
+#include <stdio.h>
 void run_chat_loop(SOCKET secure_pipe) {
   char input_buffer[PAYLOAD_SIZE];
   DataPacket incoming_packet;
@@ -10,14 +11,25 @@ void run_chat_loop(SOCKET secure_pipe) {
   FILE *output_file = NULL; // Initialize output_file to NULL
 
   while (1) {
+    // read_fds is an fd_set, which is a set of file descriptors that will now
+    // be monitored (polled?) by select or poll until one file descriptor is
+    // ready for I/O operations
+    //
     fd_set read_fds;
+    // clears all the file descriptors in read_fds
     FD_ZERO(&read_fds);
 
     // keyboard input for windows
-    FD_SET(0, &read_fds);
+    // puts 0 (file descriptor), which is stdin into read_fds
+    // does not work on windows, as sockets arent file descriptors. on windows,
+    // only sockets should be put into the fd_set
+    // FD_SET(0, &read_fds);
     // watching network socket
+    // puts the secure pipe socket into read_fds. this is a macro, so different
+    // types fine, and SOCKET is pretty much? an int
     FD_SET(secure_pipe, &read_fds);
 
+    // starts monitoring
     result = select(0, &read_fds, NULL, NULL, NULL);
 
     if (result == SOCKET_ERROR) {
@@ -70,11 +82,14 @@ void run_chat_loop(SOCKET secure_pipe) {
           DataPacket send_packet;
           send_packet.type = PacketChat;
 
-          strncopy(send_packet.payload, input_buffer, PAYLOAD_SIZE);
+          strncpy(send_packet.payload, input_buffer, PAYLOAD_SIZE);
+          // why. is it not done automatically?
+          // no. if the message is more than 1024(PAYLOAD_SIZE) characters no.
           send_packet.payload[PAYLOAD_SIZE - 1] =
               '\0'; // Ensure null-termination
           send_packet.length = (uint16_t)strlen(send_packet.payload);
 
+          // sends through the socket a casted pointer to string of send packet
           int bytes_sent = send(secure_pipe, (char *)&send_packet,
                                 sizeof(DataPacket), 0); // send everything
 
@@ -135,20 +150,23 @@ int main(int argc,
 
   SOCKET final_pipe = INVALID_SOCKET;
   if (argc > 1 && strcmp(argv[1], "host") == 0) {
+    printf("attempting to start host\n");
     final_pipe = start_host();
   } else if (argc > 2 && strcmp(argv[1], "client") == 0) {
+
     final_pipe = start_guest(argv[2]);
 
   } else {
     printf("ERROR: Please specify 'host' or 'client <IP_ADDRESS>' as command "
            "line arguments.\n");
-    WSAcleanup();
+    // c  wasn't capital
+    WSACleanup();
     return 1;
   }
 
   if (final_pipe == INVALID_SOCKET) {
     printf("ERROR: Failed to establish a connection.\n");
-    WSAcleanup();
+    WSACleanup();
     return 1;
   }
   run_chat_loop(final_pipe);
