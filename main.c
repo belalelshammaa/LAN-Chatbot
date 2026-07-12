@@ -1,7 +1,8 @@
 #include "network.h"
 #include "protocol.h"
+#include <errno.h>
 #include <stdio.h>
-void run_chat_loop(SOCKET secure_pipe) {
+void run_chat_loop(int secure_pipe) {
   char input_buffer[PAYLOAD_SIZE];
   DataPacket incoming_packet;
   int result;
@@ -22,18 +23,17 @@ void run_chat_loop(SOCKET secure_pipe) {
     // keyboard input for windows
     // puts 0 (file descriptor), which is stdin into read_fds
     // does not work on windows, as sockets arent file descriptors. on windows,
-    // only sockets should be put into the fd_set
-    // FD_SET(0, &read_fds);
-    // watching network socket
-    // puts the secure pipe socket into read_fds. this is a macro, so different
-    // types fine, and SOCKET is pretty much? an int
+    // only sockets should be put into the fd_set, as select only accepts
+    // SOCKETS FD_SET(0, &read_fds); watching network socket puts the secure
+    // pipe socket into read_fds. this is a macro, so different types fine, and
+    // SOCKET is pretty much? an int
     FD_SET(secure_pipe, &read_fds);
 
     // starts monitoring
     result = select(0, &read_fds, NULL, NULL, NULL);
 
-    if (result == SOCKET_ERROR) {
-      printf("ERROR: select() failed with error code %d\n", WSAGetLastError());
+    if (result < 0) {
+      printf("ERROR: select() failed with error code %d\n", errno);
       break;
     }
     // -------------------------
@@ -93,9 +93,8 @@ void run_chat_loop(SOCKET secure_pipe) {
           int bytes_sent = send(secure_pipe, (char *)&send_packet,
                                 sizeof(DataPacket), 0); // send everything
 
-          if (bytes_sent == SOCKET_ERROR) {
-            printf("ERROR: send() failed with error code %d\n",
-                   WSAGetLastError());
+          if (bytes_sent == -1) {
+            printf("ERROR: send() failed with error code %d\n", errno);
             break;
           }
         }
@@ -139,16 +138,8 @@ void run_chat_loop(SOCKET secure_pipe) {
 // ----------------------------------
 int main(int argc,
          char *argv[]) { // da for intilization meen host weh meen client
-  WSADATA wsaData;
-  int wsa_check =
-      WSAStartup(MAKEWORD(2, 2), &wsaData); // to start using network
-  if (wsa_check != 0) {
-    printf("FY MASHAKEL BOS 3ALEHA: %d\n", wsa_check);
-    return 1;
-  }
-  printf("EL NETWORK FEL SALEEM WEH ZAY EL FOL.\n\n");
 
-  SOCKET final_pipe = INVALID_SOCKET;
+  int final_pipe = -1;
   if (argc > 1 && strcmp(argv[1], "host") == 0) {
     printf("attempting to start host\n");
     final_pipe = start_host();
@@ -160,13 +151,11 @@ int main(int argc,
     printf("ERROR: Please specify 'host' or 'client <IP_ADDRESS>' as command "
            "line arguments.\n");
     // c  wasn't capital
-    WSACleanup();
     return 1;
   }
 
-  if (final_pipe == INVALID_SOCKET) {
+  if (final_pipe == -1) {
     printf("ERROR: Failed to establish a connection.\n");
-    WSACleanup();
     return 1;
   }
   run_chat_loop(final_pipe);

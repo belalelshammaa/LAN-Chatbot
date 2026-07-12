@@ -1,10 +1,11 @@
 #include "protocol.h"
-#include <psdk_inc/_socket_types.h>
-// #include <stdio.h>
+#include <unistd.h>
+// #include <psdk_inc/_socket_types.h>
+//  #include <stdio.h>
 #include <string.h>
 // #include <winsock2.h>
 // #include <ws2tcpip.h>
-SOCKET start_host(void) {
+int start_host(void) {
   struct addrinfo *result = NULL, hints;
   // makesure hints is 0, no data in it so the result we get is how we want
   memset(&hints, 0, sizeof hints);
@@ -19,9 +20,9 @@ SOCKET start_host(void) {
   if ((addr_result = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result)) != 0) {
     // stdout or stderr
     printf("error in getaddrinfo: %d\n", addr_result);
-    return INVALID_SOCKET;
+    return -1;
   }
-  SOCKET sock = INVALID_SOCKET;
+  int sock = -1;
 
   printf("socktype: %d,family: %d, protocol: %d\n", result->ai_socktype,
          result->ai_family, result->ai_protocol);
@@ -33,18 +34,18 @@ SOCKET start_host(void) {
   int bind_result;
   if ((bind_result = bind(sock, result->ai_addr, result->ai_addrlen)) != 0) {
     printf("error in binding socket to port: %d\n", bind_result);
-    return INVALID_SOCKET;
+    return -1;
   };
   // listening
   int listen_result;
   if ((listen_result = listen(sock, SOMAXCONN) != 0)) {
     printf("error in binding socket to port: %d\n", listen_result);
-    return INVALID_SOCKET;
+    return -1;
   };
   return sock;
 }
 
-SOCKET start_guest(char *server_address) {
+int start_guest(char *server_address) {
   struct addrinfo *result, *ptr, hints;
   memset(&hints, 0, sizeof hints);
   // could cause program to fail. if it does, try setting it to as specific type
@@ -57,20 +58,19 @@ SOCKET start_guest(char *server_address) {
            getaddrinfo(server_address, DEFAULT_PORT, &hints, &result)) != 0) {
     // stdout or stderr
     printf("error in getaddrinfo: %d\n", addr_result);
-    return INVALID_SOCKET;
+    return -1;
   }
-  SOCKET sock = INVALID_SOCKET;
+  int sock = -1;
   for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
     if ((sock = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol)) ==
-        INVALID_SOCKET) {
+        -1) {
       printf("could not create socket\n");
-      return INVALID_SOCKET;
+      return -1;
     }
     int connect_result;
-    if ((connect_result = connect(sock, ptr->ai_addr, ptr->ai_addrlen)) ==
-        SOCKET_ERROR) {
-      closesocket(sock);
-      sock = INVALID_SOCKET;
+    if ((connect_result = connect(sock, ptr->ai_addr, ptr->ai_addrlen)) == -1) {
+      close(sock);
+      sock = -1;
       continue;
     };
     break;
