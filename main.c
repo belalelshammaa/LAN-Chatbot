@@ -2,6 +2,7 @@
 #include "protocol.h"
 #include <errno.h>
 #include <stdio.h>
+#include <sys/select.h>
 void run_chat_loop(int secure_pipe) {
   char input_buffer[PAYLOAD_SIZE];
   DataPacket incoming_packet;
@@ -24,14 +25,17 @@ void run_chat_loop(int secure_pipe) {
     // puts 0 (file descriptor), which is stdin into read_fds
     // does not work on windows, as sockets arent file descriptors. on windows,
     // only sockets should be put into the fd_set, as select only accepts
-    // SOCKETS FD_SET(0, &read_fds); watching network socket puts the secure
+    // SOCKETS
+    FD_SET(0, &read_fds);
+    // watching network socket puts the secure
     // pipe socket into read_fds. this is a macro, so different types fine, and
     // SOCKET is pretty much? an int
     FD_SET(secure_pipe, &read_fds);
 
     // starts monitoring
-    result = select(0, &read_fds, NULL, NULL, NULL);
-
+    // how much select checks. neede so it doesn't block
+    struct timeval tv = {.tv_sec = 0, .tv_usec = 100000};
+    result = select(secure_pipe + 1, &read_fds, NULL, NULL, &tv);
     if (result < 0) {
       printf("ERROR: select() failed with error code %d\n", errno);
       break;

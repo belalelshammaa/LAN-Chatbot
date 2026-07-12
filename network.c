@@ -1,4 +1,5 @@
 #include "protocol.h"
+#include <stdio.h>
 #include <unistd.h>
 // #include <psdk_inc/_socket_types.h>
 //  #include <stdio.h>
@@ -39,7 +40,7 @@ int start_host(void) {
   // listening
   int listen_result;
   if ((listen_result = listen(sock, SOMAXCONN) != 0)) {
-    printf("error in binding socket to port: %d\n", listen_result);
+    printf("could not listen : %d\n", listen_result);
     return -1;
   };
   return sock;
@@ -76,6 +77,7 @@ int start_guest(char *server_address) {
     break;
   }
   freeaddrinfo(result);
+  printf("connection established\n");
   return sock;
 }
 // sockaddr is general so stuff like bind() don't have to worry about family
