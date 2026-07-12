@@ -40,7 +40,7 @@ int start_host(void) {
   };
   // listening
   int listen_result;
-  if ((listen_result = listen(sock, SOMAXCONN) != 0)) {
+  if ((listen_result = listen(sock, 10) != 0)) {
     printf("could not listen : %d\n", listen_result);
     return -1;
   };
@@ -79,8 +79,8 @@ int start_guest(char *server_address) {
       printf("could not create socket\n");
       return -1;
     }
-    int connect_result;
-    if ((connect_result = connect(sock, ptr->ai_addr, ptr->ai_addrlen)) == -1) {
+    if (connect(sock, ptr->ai_addr, ptr->ai_addrlen) == -1) {
+      printf("attempting other address in linked list\n");
       close(sock);
       sock = -1;
       continue;
