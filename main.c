@@ -2,6 +2,7 @@
 #include "protocol.h"
 #include <errno.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/select.h>
 void run_chat_loop(int secure_pipe) {
   char input_buffer[PAYLOAD_SIZE];
@@ -12,6 +13,7 @@ void run_chat_loop(int secure_pipe) {
 
   FILE *output_file = NULL; // Initialize output_file to NULL
 
+  int files_sent = 0;
   while (1) {
     // read_fds is an fd_set, which is a set of file descriptors that will now
     // be monitored (polled?) by select or poll until one file descriptor is
@@ -120,7 +122,18 @@ void run_chat_loop(int secure_pipe) {
       } else if (incoming_packet.type == Packet_file_chunk) {
         if (output_file == NULL) {
           printf(" [FILE TRANSFER INITIATED]: Receiving file...\n");
-          output_file = fopen("received_file.dat", "wb");
+          // just to figure out size of s;
+          int digits;
+          int temp = files_sent;
+          while (temp > 0) {
+            digits++;
+            temp = temp / 10;
+          }
+          // char s[18 + digits];
+          char u[14 + digits];
+          sprintf(u, "%s%d", "recieved_file", files_sent + 1);
+          char *s = strcat(u, ".dat");
+          output_file = fopen(s, "wb");
         }
         if (output_file != NULL) {
           fwrite(incoming_packet.payload, 1, incoming_packet.length,
@@ -131,6 +144,7 @@ void run_chat_loop(int secure_pipe) {
           fclose(output_file);
           output_file = NULL;
           printf("[FILE TRANSFER COMPLETE]: File received successfully.\n");
+          files_sent++;
         }
       }
     }
