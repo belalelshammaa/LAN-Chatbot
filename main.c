@@ -46,7 +46,7 @@ void run_chat_loop(int secure_pipe) {
     if (FD_ISSET(0, &read_fds)) {
       if (fgets(input_buffer, sizeof(input_buffer), stdin) != NULL) {
 
-        if (strncmp(input_buffer, "/file", 6) == 0) {
+        if (strncmp(input_buffer, "/file", 5) == 0) {
           // extract the file path from the input command
           char filepath[256];
           sscanf(input_buffer, "/file %s", filepath);
@@ -68,19 +68,18 @@ void run_chat_loop(int secure_pipe) {
                                      source_file)) > 0) {
             file_packet.type = Packet_file_chunk;
             file_packet.length = (uint16_t)bytes_read;
-
-            send(secure_pipe, (char *)&file_packet, sizeof(DataPacket), 0);
             total_bytes_sent += bytes_read;
-
-            // el eof marker
-            file_packet.type = Packet_file_eof;
-            file_packet.length = 0;
-            send(secure_pipe, (char *)&file_packet, sizeof(DataPacket), 0);
-
-            fclose(source_file);
-            printf("[FILE TRANSFER COMPLETE]: Total bytes sent: %lu\n",
-                   total_bytes_sent);
           }
+          send(secure_pipe, (char *)&file_packet, sizeof(DataPacket), 0);
+
+          // el eof marker
+          file_packet.type = Packet_file_eof;
+          file_packet.length = 0;
+          send(secure_pipe, (char *)&file_packet, sizeof(DataPacket), 0);
+
+          fclose(source_file);
+          printf("[FILE TRANSFER COMPLETE]: Total bytes sent: %lu\n",
+                 total_bytes_sent);
         } else {
           // STANDARD CHAT MESSAGE
           DataPacket send_packet;

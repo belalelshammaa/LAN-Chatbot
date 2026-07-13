@@ -12,7 +12,7 @@
 
 #define PAYLOAD_SIZE 1024
 // functions like getaddrinfo require this to be a string and not an int
-#define DEFAULT_PORT "8888"
+#define DEFAULT_PORT "8886"
 
 enum PacketType {
   PacketChat = 1,

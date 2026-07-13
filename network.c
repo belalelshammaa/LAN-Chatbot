@@ -49,11 +49,14 @@ int start_host(void) {
   // struct sockaddr_storage client_addr;
   // socklen_t addr_size = sizeof client_addr;
 
+  printf("before accept\n");
   int client_sock = accept(sock, NULL, NULL);
   if (client_sock == -1) {
     printf("could not accept connection");
     return -1;
   }
+  printf("after accept\n");
+  close(sock);
 
   return client_sock;
 }
@@ -64,7 +67,7 @@ int start_guest(char *server_address) {
   // could cause program to fail. if it does, try setting it to as specific type
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_PASSIVE;
+  // hints.ai_flags = AI_PASSIVE;
   hints.ai_protocol = IPPROTO_TCP;
   int addr_result;
   if ((addr_result =
