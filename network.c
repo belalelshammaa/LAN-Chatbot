@@ -1,4 +1,4 @@
-#include "protocol.h"
+#include "network.h"
 #include <stdio.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -49,7 +49,11 @@ int start_host(void) {
   // struct sockaddr_storage client_addr;
   // socklen_t addr_size = sizeof client_addr;
 
+  // TODO
+  // make this function return after listen, and have another thread call accept
   printf("before accept\n");
+  // cannot be NULL NULL anymore, we need to know the ip of who connected
+  // to construct the Client struct also. can't have it be null null
   int client_sock = accept(sock, NULL, NULL);
   if (client_sock == -1) {
     printf("could not accept connection");

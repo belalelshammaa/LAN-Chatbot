@@ -1,12 +1,12 @@
+#include "client.h"
 #include "network.h"
-#include "protocol.h"
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/select.h>
 void run_chat_loop(int secure_pipe) {
   char input_buffer[PAYLOAD_SIZE];
-  DataPacket incoming_packet;
+  struct DataPacket incoming_packet;
   int result;
   printf(" \n ------------------  Ahlan beekom fel bo7eera ------------------- "
          "\n");
@@ -62,7 +62,7 @@ void run_chat_loop(int secure_pipe) {
                    filepath);
             continue;
           }
-          DataPacket file_packet;
+          struct DataPacket file_packet;
           size_t bytes_read;
           unsigned long total_bytes_sent = 0;
           // read the file in chunks and send each chunk as a DataPacket
@@ -72,19 +72,19 @@ void run_chat_loop(int secure_pipe) {
             file_packet.length = (uint16_t)bytes_read;
             total_bytes_sent += bytes_read;
           }
-          send(secure_pipe, (char *)&file_packet, sizeof(DataPacket), 0);
+          send(secure_pipe, (char *)&file_packet, sizeof(struct DataPacket), 0);
 
           // el eof marker
           file_packet.type = Packet_file_eof;
           file_packet.length = 0;
-          send(secure_pipe, (char *)&file_packet, sizeof(DataPacket), 0);
+          send(secure_pipe, (char *)&file_packet, sizeof(struct DataPacket), 0);
 
           fclose(source_file);
           printf("[FILE TRANSFER COMPLETE]: Total bytes sent: %lu\n",
                  total_bytes_sent);
         } else {
           // STANDARD CHAT MESSAGE
-          DataPacket send_packet;
+          struct DataPacket send_packet;
           send_packet.type = PacketChat;
 
           strncpy(send_packet.payload, input_buffer, PAYLOAD_SIZE);
@@ -95,8 +95,9 @@ void run_chat_loop(int secure_pipe) {
           send_packet.length = (uint16_t)strlen(send_packet.payload);
 
           // sends through the socket a casted pointer to string of send packet
-          int bytes_sent = send(secure_pipe, (char *)&send_packet,
-                                sizeof(DataPacket), 0); // send everything
+          int bytes_sent =
+              send(secure_pipe, (char *)&send_packet, sizeof(struct DataPacket),
+                   0); // send everything
 
           if (bytes_sent == -1) {
             printf("ERROR: send() failed with error code %d\n", errno);
@@ -106,8 +107,8 @@ void run_chat_loop(int secure_pipe) {
       }
     }
     if (FD_ISSET(secure_pipe, &read_fds)) {
-      int bytes_recieved =
-          recv(secure_pipe, (char *)&incoming_packet, sizeof(DataPacket), 0);
+      int bytes_recieved = recv(secure_pipe, (char *)&incoming_packet,
+                                sizeof(struct DataPacket), 0);
       if (bytes_recieved <= 0) {
         printf("\n[DISCONNECTED] SOMEONE HAS LEFT THE CHAT OR CONNCECTION "
                "LOST.\n");
