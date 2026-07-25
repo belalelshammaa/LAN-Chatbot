@@ -20,7 +20,7 @@ enum PacketType {
   PCKT_FILE_END = 5,
 };
 
-typedef uint32_t uuid;
+typedef char uuid[16];
 struct DataPacket {
   char payload[PAYLOAD_SIZE];
   uuid id;

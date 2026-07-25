@@ -4,9 +4,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
-
+#include <unistd.h>
+FILE *output_file = NULL; // Initialize output_file to NULL
 int handle_message(int socket, char *input) {
-
+  if (input == NULL) {
+    printf("null input\n");
+    return 0;
+  }
   struct DataPacket send_packet;
   send_packet.type = PCKT_CHAT;
 
@@ -15,7 +19,6 @@ int handle_message(int socket, char *input) {
   // no. if the message is more than 1024(PAYLOAD_SIZE) characters no.
   send_packet.payload[PAYLOAD_SIZE - 1] = '\0'; // Ensure null-termination
   send_packet.length = (uint16_t)strlen(send_packet.payload);
-  send_packet.id = 0;
 
   // sends through the socket a casted pointer to string of send packet
   long int bytes_sent =
@@ -28,9 +31,11 @@ int handle_message(int socket, char *input) {
   }
   return 0;
 }
-int handle_file(int socket, char *input) {
-  char filepath[256];
-  sscanf(input, "/file %s", filepath);
+int handle_file(int socket, char *filepath) {
+  if (filepath == NULL) {
+    printf("empty file");
+    return 0;
+  }
   printf("[FILE TRANSFER INITIATED]: Attempting to Stream file: %s\n",
          filepath);
   // open the file for reading in binary mode
@@ -39,14 +44,14 @@ int handle_file(int socket, char *input) {
     printf("ERROR: Could not open file %s for reading, check u wrote "
            "correct path.\n",
            filepath);
-    return -1;
+    return 0;
   }
   struct DataPacket file_packet_start;
-  strncpy(file_packet_start.payload, filepath, sizeof filepath);
+  strcpy(file_packet_start.payload, filepath);
   // enzure null-termination
-  file_packet_start.payload[sizeof filepath - 1] = '\0';
+  file_packet_start.payload[strlen(filepath)] = '\0';
   file_packet_start.length = (uint16_t)strlen(file_packet_start.payload);
-  file_packet_start.id = 0;
+  file_packet_start.type = PCKT_FILE_START;
 
   if (send(socket, (char *)&file_packet_start, sizeof(struct DataPacket), 0) ==
       -1) {
@@ -59,14 +64,14 @@ int handle_file(int socket, char *input) {
   // read the file in chunks and send each chunk as a DataPacket
   while ((bytes_read =
               fread(file_packet.payload, 1, PAYLOAD_SIZE, source_file)) > 0) {
-    file_packet.type = Packet_file_chunk;
+    file_packet.type = PCKT_FILE_CHUNK;
     file_packet.length = (uint16_t)bytes_read;
     total_bytes_sent += bytes_read;
+    send(socket, (char *)&file_packet, sizeof(struct DataPacket), 0);
   }
-  send(socket, (char *)&file_packet, sizeof(struct DataPacket), 0);
 
   // el eof marker
-  file_packet.type = Packet_file_eof;
+  file_packet.type = PCKT_FILE_END;
   file_packet.length = 0;
   send(socket, (char *)&file_packet, sizeof(struct DataPacket), 0);
 
@@ -74,168 +79,148 @@ int handle_file(int socket, char *input) {
   printf("[FILE TRANSFER COMPLETE]: Total bytes sent: %lu\n", total_bytes_sent);
   return 0;
 }
-int handle_exit(int socket, char *input) {
+int handle_exit(int socket, char *_input) {
   struct DataPacket send_packet = {
-      .id = 0,
       .length = 0,
-      .payload = 0,
+      .payload = {0},
       .type = PCKT_LEAVE,
   };
   if (send(socket, (char *)&send_packet, sizeof(struct DataPacket), 0) == -1) {
     printf("could not send leave packet from client to server\n");
     return -1;
   }
-  return 0;
+  if (close(socket) == -1) {
+    return -1;
+  }
+  return 1;
 }
 struct command_t {
   const char *name;
   int (*handler)(int, char *);
 };
 static const struct command_t command_handler[] = {
-    {"msg", handle_message},
-    {"file", handle_file},
-    {"exit", handle_exit},
+    {"/msg", handle_message},
+    {"/file", handle_file},
+    {"/exit", handle_exit},
+};
+int packet_message(struct DataPacket *packet) {
+
+  packet->payload[PAYLOAD_SIZE - 1] = '\0'; // Ensure null-termination
+
+  printf("\n[INCOMING MESSAGE]: %s\n", packet->payload);
+  return 0;
+}
+int packet_join(struct DataPacket *packet) {
+  packet->payload[PAYLOAD_SIZE - 1] = '\0'; // Ensure null-termination
+
+  printf("\n: %s has joined\n", packet->payload);
+  return 0;
+}
+int packet_leave(struct DataPacket *packet) {
+  packet->payload[PAYLOAD_SIZE - 1] = '\0'; // Ensure null-termination
+
+  printf("\n: %s has left\n", packet->payload);
+  return 0;
+}
+int packet_start(struct DataPacket *packet) {
+  packet->payload[PAYLOAD_SIZE - 1] = '\0'; // Ensure null-termination
+  char filename[256] = "../files/";
+  strcat(filename, packet->payload);
+  output_file = fopen(filename, "wb");
+  printf("created file %s\n", filename);
+  return 0;
+}
+int packet_end(struct DataPacket *_packet) {
+  if (output_file != NULL) {
+    fclose(output_file);
+    output_file = NULL;
+  }
+  printf("[FILE TRANSFER COMPLETE]: File received successfully.\n");
+  return 0;
+}
+int packet_chunk(struct DataPacket *packet) {
+
+  if (output_file != NULL) {
+    fwrite(packet->payload, 1, packet->length, output_file);
+    return 0;
+  }
+  return -1;
+}
+static int (*packet_handler[])(struct DataPacket *) = {
+    packet_join,  packet_leave, packet_message,
+    packet_start, packet_chunk, packet_end,
 };
 int client_loop(int socket) {
+
   char input_buffer[PAYLOAD_SIZE];
   struct DataPacket incoming_packet;
   int result;
   printf("Welcome!\n");
 
-  FILE *output_file = NULL; // Initialize output_file to NULL
-
   while (1) {
-    // read_fds is an fd_set, which is a set of file descriptors that will now
-    // be monitored (polled?) by select or poll until one file descriptor is
-    // ready for I/O operations
-    //
     fd_set read_fds;
-    // clears all the file descriptors in read_fds
     FD_ZERO(&read_fds);
-
-    // keyboard input for windows
-    // puts 0 (file descriptor), which is stdin into read_fds
-    // does not work on windows, as sockets arent file descriptors. on
-    // windows, only sockets should be put into the fd_set, as select only
-    // accepts SOCKETS
     FD_SET(0, &read_fds);
-    // watching network socket puts the secure
-    // pipe socket into read_fds. this is a macro, so different types fine,
-    // and SOCKET is pretty much? an int
     FD_SET(socket, &read_fds);
 
-    // starts monitoring
-    // how much select checks. neede so it doesn't block
     struct timeval tv = {.tv_sec = 0, .tv_usec = 100000};
     result = select(socket + 1, &read_fds, NULL, NULL, &tv);
+
     if (result < 0) {
       printf("ERROR: select() failed with error code %d\n", errno);
       break;
     }
+
     if (FD_ISSET(0, &read_fds)) {
+      // split using spaces
+      int flag = 1;
       if (fgets(input_buffer, sizeof(input_buffer), stdin) != NULL) {
-
-        if (strncmp(input_buffer, "/file", 5) == 0) {
-          // extract the file path from the input command
-          char filepath[256];
-          sscanf(input_buffer, "/file %s", filepath);
-          printf("[FILE TRANSFER INITIATED]: Attempting to Stream file: %s\n",
-                 filepath);
-          // open the file for reading in binary mode
-          FILE *source_file = fopen(filepath, "rb");
-          if (source_file == NULL) {
-            printf("ERROR: Could not open file %s for reading, check u wrote "
-                   "correct path.\n",
-                   filepath);
-            continue;
+        char *ptr = strchr(input_buffer, '\n');
+        if (ptr != NULL) {
+          *ptr = '\0';
+        }
+        char temp[sizeof input_buffer];
+        strcpy(temp, input_buffer);
+        char *cmd = strtok(temp, " ");
+        char *args = strtok(NULL, "");
+        if (cmd != NULL) {
+          for (size_t i = 0;
+               i < (sizeof command_handler / sizeof(struct command_t)); i++) {
+            if (strcmp(cmd, command_handler[i].name) == 0) {
+              flag = 0;
+              int command_result;
+              if ((command_result = command_handler[i].handler(socket, args)) ==
+                  -1) {
+                return -1;
+              } else if (command_result == 1) {
+                return 0;
+              } else {
+                break;
+              }
+            }
           }
-          struct DataPacket file_packet;
-          size_t bytes_read;
-          unsigned long total_bytes_sent = 0;
-          // read the file in chunks and send each chunk as a DataPacket
-          while ((bytes_read = fread(file_packet.payload, 1, PAYLOAD_SIZE,
-                                     source_file)) > 0) {
-            file_packet.type = Packet_file_chunk;
-            file_packet.length = (uint16_t)bytes_read;
-            total_bytes_sent += bytes_read;
-          }
-          send(socket, (char *)&file_packet, sizeof(struct DataPacket), 0);
-
-          // el eof marker
-          file_packet.type = Packet_file_eof;
-          file_packet.length = 0;
-          send(socket, (char *)&file_packet, sizeof(struct DataPacket), 0);
-
-          fclose(source_file);
-          printf("[FILE TRANSFER COMPLETE]: Total bytes sent: %lu\n",
-                 total_bytes_sent);
-        } else {
-          // STANDARD CHAT MESSAGE
-          struct DataPacket send_packet;
-          send_packet.type = PacketChat;
-
-          strncpy(send_packet.payload, input_buffer, PAYLOAD_SIZE);
-          // why. is it not done automatically?
-          // no. if the message is more than 1024(PAYLOAD_SIZE) characters no.
-          send_packet.payload[PAYLOAD_SIZE - 1] =
-              '\0'; // Ensure null-termination
-          send_packet.length = (uint16_t)strlen(send_packet.payload);
-
-          // sends through the socket a casted pointer to string of send
-          // packet
-          int bytes_sent =
-              send(socket, (char *)&send_packet, sizeof(struct DataPacket),
-                   0); // send everything
-
-          if (bytes_sent == -1) {
-            printf("ERROR: send() failed with error code %d\n", errno);
-            break;
+          if (flag) {
+            if (command_handler[0].handler(socket, input_buffer) == -1) {
+              return -1;
+            };
           }
         }
+      } else {
+        return -1;
       }
     }
     if (FD_ISSET(socket, &read_fds)) {
       int bytes_recieved =
           recv(socket, (char *)&incoming_packet, sizeof(struct DataPacket), 0);
       if (bytes_recieved <= 0) {
-        printf("\n[DISCONNECTED] SOMEONE HAS LEFT THE CHAT OR CONNCECTION "
-               "LOST.\n");
-        break;
+        printf("\n[DISCONNECTED] Server has disconnected "
+               "\n");
+        return -1;
       }
       // Handle incoming packet based on its type
-      if (incoming_packet.type == PacketChat) {
-        incoming_packet.payload[PAYLOAD_SIZE - 1] =
-            '\0'; // Ensure null-termination
-
-        printf("\n[INCOMING MESSAGE]: %s\n", incoming_packet.payload);
-      } else if (incoming_packet.type == Packet_file_chunk) {
-        if (output_file == NULL) {
-          printf(" [FILE TRANSFER INITIATED]: Receiving file...\n");
-          // just to figure out size of s;
-          int digits;
-          int temp = files_sent;
-          while (temp > 0) {
-            digits++;
-            temp = temp / 10;
-          }
-          // char s[18 + digits];
-          char u[14 + digits];
-          sprintf(u, "%s%d", "recieved_file", files_sent + 1);
-          char *s = strcat(u, ".dat");
-          output_file = fopen(s, "wb");
-        }
-        if (output_file != NULL) {
-          fwrite(incoming_packet.payload, 1, incoming_packet.length,
-                 output_file);
-        }
-      } else if (incoming_packet.type == Packet_file_eof) {
-        if (output_file != NULL) {
-          fclose(output_file);
-          output_file = NULL;
-          printf("[FILE TRANSFER COMPLETE]: File received successfully.\n");
-          files_sent++;
-        }
-      }
+      if (packet_handler[incoming_packet.type](&incoming_packet) == -1) {
+        return -1;
+      };
     }
   }
   return result;

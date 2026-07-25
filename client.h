@@ -7,4 +7,5 @@ struct Client {
   uuid uuid;
   int socket;
 };
+int client_loop(int);
 #endif

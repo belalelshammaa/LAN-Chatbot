@@ -1,4 +1,6 @@
 #include "network.h"
+#include "client.h"
+#include <netdb.h>
 #include <stdio.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -65,7 +67,7 @@ int start_host(void) {
   return client_sock;
 }
 
-int start_guest(char *server_address) {
+int start_client(char *server_address) {
   struct addrinfo *result, *ptr, hints;
   memset(&hints, 0, sizeof hints);
   // could cause program to fail. if it does, try setting it to as specific type
@@ -85,6 +87,7 @@ int start_guest(char *server_address) {
     if ((sock = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol)) ==
         -1) {
       printf("could not create socket\n");
+      freeaddrinfo(result);
       return -1;
     }
     if (connect(sock, ptr->ai_addr, ptr->ai_addrlen) == -1) {
@@ -97,6 +100,14 @@ int start_guest(char *server_address) {
   }
   freeaddrinfo(result);
   printf("connection established. sd number: %d\n", sock);
+  struct DataPacket send_packet;
+  send_packet.type = PCKT_JOIN;
+  char name[256];
+  printf("enter your name please\n");
+  scanf("%s", name);
+  strcpy(send_packet.payload, name);
+  send_packet.length = (uint16_t)strlen(send_packet.payload);
+  send(sock, (char *)&send_packet, sizeof(struct DataPacket), 0);
   return sock;
 }
 // sockaddr is general so stuff like bind() don't have to worry about family
