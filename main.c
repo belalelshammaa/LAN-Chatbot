@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/select.h>
-void run_chat_loop(int secure_pipe) {
+/*void run_chat_loop(int secure_pipe) {
   char input_buffer[PAYLOAD_SIZE];
   struct DataPacket incoming_packet;
   int result;
@@ -268,7 +268,7 @@ int main(int argc, char *argv[]) { //da for intilization meen host weh meen clie
       }
     }
   }
-}
+}*/
 // ----------------------------------
 // MAIN ENTRY AND DRIVER HANDSHAKE
 // ----------------------------------
@@ -294,6 +294,6 @@ int main(int argc,
     printf("ERROR: Failed to establish a connection.\n");
     return 1;
   }
-  run_chat_loop(final_pipe);
+  client_loop(final_pipe);
   return 0;
 }
