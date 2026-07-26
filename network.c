@@ -2,71 +2,10 @@
 #include "client.h"
 #include <netdb.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-// #include <psdk_inc/_socket_types.h>
-//  #include <stdio.h>
-#include <string.h>
-// #include <winsock2.h>
-// #include <ws2tcpip.h>
-int start_host(void) {
-  struct addrinfo *result = NULL, hints;
-  // makesure hints is 0, no data in it so the result we get is how we want
-  memset(&hints, 0, sizeof hints);
-  // could cause program to fail. if it does, try setting it to as specific type
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-  // fill in my ip for me, not manual;
-  hints.ai_protocol = IPPROTO_TCP;
-  hints.ai_flags = AI_PASSIVE;
-  // null parameter was for manual ip address insertion
-  int addr_result;
-  if ((addr_result = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result)) != 0) {
-    // stdout or stderr
-    printf("error in getaddrinfo: %d\n", addr_result);
-    return -1;
-  }
-
-  printf("socktype: %d,family: %d, protocol: %d\n", result->ai_socktype,
-         result->ai_family, result->ai_protocol);
-  int sock =
-      socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-
-  // bind associates socket with specific port number
-  // only done on server/host as for the client they will attempt to connect to
-  // a port and not listen
-  int bind_result;
-  if ((bind_result = bind(sock, result->ai_addr, result->ai_addrlen)) != 0) {
-    printf("error in binding socket to port: %d\n", bind_result);
-    return -1;
-  };
-  // listening
-  int listen_result;
-  if ((listen_result = listen(sock, 10) != 0)) {
-    printf("could not listen : %d\n", listen_result);
-    return -1;
-  };
-
-  // storing their client
-  // struct sockaddr_storage client_addr;
-  // socklen_t addr_size = sizeof client_addr;
-
-  // TODO
-  // make this function return after listen, and have another thread call accept
-  printf("before accept\n");
-  // cannot be NULL NULL anymore, we need to know the ip of who connected
-  // to construct the Client struct also. can't have it be null null
-  int client_sock = accept(sock, NULL, NULL);
-  if (client_sock == -1) {
-    printf("could not accept connection");
-    return -1;
-  }
-  printf("after accept\n");
-  close(sock);
-
-  return client_sock;
-}
-
+char client_name[256];
 int start_client(char *server_address) {
   struct addrinfo *result, *ptr, hints;
   memset(&hints, 0, sizeof hints);
@@ -83,6 +22,12 @@ int start_client(char *server_address) {
     return -1;
   }
   int sock = -1;
+  struct DataPacket send_packet;
+  send_packet.type = PCKT_JOIN;
+  printf("enter your name please\n");
+  scanf("%s", client_name);
+  strcpy(send_packet.payload, client_name);
+  send_packet.length = (uint16_t)strlen(send_packet.payload);
   for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
     if ((sock = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol)) ==
         -1) {
@@ -100,13 +45,6 @@ int start_client(char *server_address) {
   }
   freeaddrinfo(result);
   printf("connection established. sd number: %d\n", sock);
-  struct DataPacket send_packet;
-  send_packet.type = PCKT_JOIN;
-  char name[256];
-  printf("enter your name please\n");
-  scanf("%s", name);
-  strcpy(send_packet.payload, name);
-  send_packet.length = (uint16_t)strlen(send_packet.payload);
   send(sock, (char *)&send_packet, sizeof(struct DataPacket), 0);
   return sock;
 }

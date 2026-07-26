@@ -20,7 +20,7 @@ enum PacketType {
   PCKT_FILE_END = 5,
 };
 
-typedef char uuid[16];
+typedef char uuid[32];
 struct DataPacket {
   char payload[PAYLOAD_SIZE];
   uuid id;
@@ -28,6 +28,5 @@ struct DataPacket {
   uint8_t type;
 };
 
-int start_host(void);
-int start_guest(char *server_address);
+int start_client(char *server_address);
 #endif

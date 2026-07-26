@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+extern char client_name[256];
 FILE *output_file = NULL; // Initialize output_file to NULL
 int handle_message(int socket, char *input) {
   if (input == NULL) {
@@ -67,8 +68,8 @@ int handle_file(int socket, char *filepath) {
     file_packet.type = PCKT_FILE_CHUNK;
     file_packet.length = (uint16_t)bytes_read;
     total_bytes_sent += bytes_read;
-    send(socket, (char *)&file_packet, sizeof(struct DataPacket), 0);
   }
+  send(socket, (char *)&file_packet, sizeof(struct DataPacket), 0);
 
   // el eof marker
   file_packet.type = PCKT_FILE_END;
@@ -107,7 +108,7 @@ int packet_message(struct DataPacket *packet) {
 
   packet->payload[PAYLOAD_SIZE - 1] = '\0'; // Ensure null-termination
 
-  printf("\n[INCOMING MESSAGE]: %s\n", packet->payload);
+  printf("\n[%s]: %s\n", packet->id, packet->payload);
   return 0;
 }
 int packet_join(struct DataPacket *packet) {
@@ -123,9 +124,10 @@ int packet_leave(struct DataPacket *packet) {
   return 0;
 }
 int packet_start(struct DataPacket *packet) {
+  printf("[%s] sent a file\n", packet->id);
   packet->payload[PAYLOAD_SIZE - 1] = '\0'; // Ensure null-termination
-  char filename[256] = "../files/";
-  strcat(filename, packet->payload);
+  char filename[256];
+  sprintf(filename, "../files/%s%s", client_name, packet->payload);
   output_file = fopen(filename, "wb");
   printf("created file %s\n", filename);
   return 0;
