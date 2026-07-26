@@ -68,8 +68,8 @@ int handle_file(int socket, char *filepath) {
     file_packet.type = PCKT_FILE_CHUNK;
     file_packet.length = (uint16_t)bytes_read;
     total_bytes_sent += bytes_read;
+    send(socket, (char *)&file_packet, sizeof(struct DataPacket), 0);
   }
-  send(socket, (char *)&file_packet, sizeof(struct DataPacket), 0);
 
   // el eof marker
   file_packet.type = PCKT_FILE_END;
@@ -118,9 +118,9 @@ int packet_join(struct DataPacket *packet) {
   return 0;
 }
 int packet_leave(struct DataPacket *packet) {
-  packet->payload[PAYLOAD_SIZE - 1] = '\0'; // Ensure null-termination
+  packet->id[31] = '\0'; // Ensure null-termination
 
-  printf("\n: %s has left\n", packet->payload);
+  printf("\n: %s has left\n", packet->id);
   return 0;
 }
 int packet_start(struct DataPacket *packet) {

@@ -130,6 +130,10 @@ int main(void) {
           printf("ERROR : MEMORY IS FULL, HANW23AK\n");
           close(new_socket);
         }
+        for (int i = 0; i < clients.len - 1; i++) {
+          struct Client *c = (struct Client *)clients.b + i;
+          send(c->socket, &first_packet, sizeof(struct DataPacket), 0);
+        }
       }
     }
 
@@ -147,23 +151,24 @@ int main(void) {
             recv(current_client_socket, (char *)&incoming_packet,
                  sizeof(struct DataPacket), 0);
 
+        char *id = c->uuid;
+        strcpy(incoming_packet.id, c->uuid);
         if (bytes_received <= 0 || incoming_packet.type == PCKT_LEAVE) {
           printf("user on %d socket disconnected. \n", current_client_socket);
-          close(current_client_socket);
 
+          incoming_packet.type = PCKT_LEAVE;
+          printf("uuid: %s\n", c->uuid);
+          close(current_client_socket);
           vec_swap_remove(&clients, i);
           i--;
-        } else {
-          // step 8 : broadcast message to everyone
-          for (int j = 0; j < clients.len; j++) {
-            struct Client *other =
-                (struct Client *)((char *)clients.b +
-                                  (j * clients.element_size));
-            if (other->socket != current_client_socket) {
-              strcpy(incoming_packet.id, c->uuid);
-              send(other->socket, (char *)&incoming_packet,
-                   sizeof(struct DataPacket), 0);
-            }
+        }
+        // step 8 : broadcast message to everyone
+        for (int j = 0; j < clients.len; j++) {
+          struct Client *other =
+              (struct Client *)((char *)clients.b + (j * clients.element_size));
+          if (other->socket != current_client_socket) {
+            send(other->socket, (char *)&incoming_packet,
+                 sizeof(struct DataPacket), 0);
           }
         }
       }
